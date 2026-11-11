@@ -46,9 +46,9 @@ main{max-width:440px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 20px)
 .num{font-family:var(--slab);font-weight:300;font-size:96px;line-height:.95;letter-spacing:-.02em;transition:opacity .4s}
 .num.dim{opacity:.38}
 .unit{font-family:var(--slab);font-weight:400;font-size:20px;color:var(--brindle)}
-.status{margin-top:10px;font-size:14px;color:var(--brindle);max-width:30ch;min-height:21px}
-.rescue{margin-top:12px}
-#tower{display:block;width:100%;height:auto;margin-top:2px;overflow:visible}
+.rescue{margin-top:14px}
+.rescue:empty{display:none}
+#tower{display:block;width:100%;height:auto;margin-top:10px;overflow:visible}
 #tower text{font-family:var(--sans);font-size:12.5px;fill:var(--ink)}
 #tower text.old{fill:var(--brindle);font-weight:300}
 #tower text.new{font-weight:400}
@@ -129,7 +129,6 @@ footer{margin-top:34px;font-size:12px;color:var(--brindle);opacity:.8}
   <section class="hero" style="margin-top:0">
     <p class="date" id="date"></p>
     <div class="streak"><span class="num" id="num">0</span><span class="unit" id="unit">dagar i rad</span></div>
-    <p class="status" id="status"></p>
     <div class="rescue" id="rescue"></div>
     <svg id="tower" viewBox="0 0 360 300" role="img" aria-label="Ditt torn"></svg>
   </section>
@@ -157,7 +156,7 @@ footer{margin-top:34px;font-size:12px;color:var(--brindle);opacity:.8}
       <button class="pill outline" data-import>Läs in backup</button>
     </div>
     <input type="file" id="file" accept=".json,application/json" hidden>
-    <footer>Tornet &middot; version 1</footer>
+    <footer>Tornet &middot; version 2</footer>
   </section>
 </main>
 
@@ -312,7 +311,7 @@ function opacityAt(i){ return i < 2 ? 1 : Math.max(.13, .62*Math.pow(.8, i-2)); 
 
 function renderTower(s, weekDone){
   const svg = document.getElementById('tower');
-  const cx = 112, topMargin = weekDone ? 60 : 28;
+  const cx = 180, topMargin = weekDone ? 60 : 28;
   let VH = 200;
   if(s.count > 0){
     const need = s.days.reduce((a,k) => a + (TYPES[state.entries[k].type].training ? 34 : 15), 0) + topMargin + 32;
@@ -356,8 +355,6 @@ function renderTower(s, weekDone){
       // tomt: ett streckat block väntar
       const r = rng(hash('ghost'));
       out += inkPath(rect(cx-57, ground-34, 114, 34, r, 1.3), 1.4, 'stroke-dasharray="3 6" opacity=".55"');
-      out += inkPath(line(cx+66, ground-17, cx+92, ground-17, r, .8), 1.2, 'opacity=".55"');
-      out += '<text x="'+(cx+100)+'" y="'+(ground-13)+'" class="old">Första blocket</text>';
     }
     svg.innerHTML = out;
     return;
@@ -404,21 +401,6 @@ function renderTower(s, weekDone){
   if(fits) out += groundLine();
   out += '<g transform="rotate('+f(angle)+' '+cx+' '+pivotY+')"><g'+(leaning?' class="sway" style="transform-origin:'+cx+'px '+pivotY+'px"':'')+'>'+inner+'</g></g>';
 
-  // etiketter: de två senaste tydliga, resten bleknar
-  let lastY = -99;
-  anchors.slice(0,6).forEach(a => {
-    if(a.op < .12) return;
-    const p = rot(a.x, a.y, cx, pivotY, angle);
-    let ly = Math.max(p[1], lastY + 17);
-    if(ly > VH - 4) return;
-    lastY = ly;
-    const lx = Math.max(p[0] + 26, 214);
-    const r = rng(hash('l'+a.b.key));
-    const cls = a.i < 2 ? 'new' : 'old';
-    out += '<g opacity="'+f(a.op)+'">' + inkPath(line(p[0]+4, p[1], lx-7, ly, r, .8), 1.1) +
-      '<text x="'+f(lx)+'" y="'+f(ly+4)+'" class="'+cls+'">'+relName(a.b.key)+' · '+TYPES[a.b.type].label+'</text></g>';
-  });
-
   svg.innerHTML = out;
 }
 
@@ -433,18 +415,6 @@ function renderHero(){
 
   const e = state.entries, yk = ymd(addDays(t,-1)), dk = ymd(addDays(t,-2));
   const canRescue = !e[yk] && !!e[dk];
-  const hour = now().getHours();
-  let msg;
-  if(!Object.keys(e).length) msg = 'Logga ditt första pass så börjar tornet växa.';
-  else if(s.loggedToday) msg = 'Dagens block är på plats.';
-  else if(s.alive) msg = hour >= 17 ? 'Tornet lutar. Hinner du en promenad?' : 'Tornet väntar på dagens block.';
-  else {
-    const run = lastRun();
-    msg = canRescue ? 'Tornet rasade. Glömde du logga igår?' :
-          'Tornet rasade efter ' + run.length + (run.length === 1 ? ' dag' : ' dagar') + '. Bygg ett nytt idag.';
-  }
-  if(s.loggedToday && canRescue) msg = 'Glömde du logga igår? Då växer tornet ihop igen.';
-  document.getElementById('status').textContent = msg;
   document.getElementById('rescue').innerHTML = canRescue ?
     '<button class="pill" data-sheet="'+yk+'">Logga igår '+arrow()+'</button>' : '';
 
@@ -508,12 +478,8 @@ function renderWeek(){
       (k ? '<path d="'+circle(18.5,18.5,13,r)+'" fill="'+TYPES[k].color+'"/>' : '') +
       '<path d="'+circle(17,17,13,r)+'" fill="none" stroke="'+INK+'" stroke-width="'+(k?1.5:1.2)+'" stroke-linecap="round" '+(k?'':'opacity=".45"')+'/></svg>';
   }
-  const left = goal - list.length;
-  const note = left <= 0 ? 'Veckomålet är klart. Flaggan är uppe på tornet.' :
-    (left === 1 ? 'Ett pass kvar till veckomålet.' : left+' pass kvar till veckomålet.');
   document.getElementById('week').innerHTML =
-    '<div class="week-head"><h2>Vecka '+isoWeek(t)+'</h2><span>'+list.length+' av '+goal+' träningsdagar</span></div>' +
-    '<div class="dots">'+dots+'</div><p class="week-note">'+note+'</p>';
+    '<h2>Vecka '+isoWeek(t)+'</h2><div class="dots">'+dots+'</div>';
   document.getElementById('goal').textContent = goal;
 }
 
